@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+logs/
+
+# 爬下來的原始資料不進版控
+data/
+*.lzh
