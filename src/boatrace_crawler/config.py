@@ -74,8 +74,10 @@ USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
-# 官網 TTFB 實測穩定在 9–10 秒且與併發數無關，吞吐幾乎等於 workers / 10。
-DEFAULT_WORKERS = 50
+# 官方 TTFB 實測穩定在 9~10 秒，吞吐幾乎等於 workers / 10。
+# 實測 200 併發下 18 req/s、0 錯誤；再高（400/600）雖然也沒被限流，
+# 但考慮到這是公開實體博弈網站，不宜再往上拉。
+DEFAULT_WORKERS = 200
 DEFAULT_DELAY = 0.0  # 每個 worker 於請求之間的秒數；瓶頸是延遲不是頻次
 DEFAULT_TIMEOUT = 60.0
 DEFAULT_RETRIES = 3
