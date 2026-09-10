@@ -31,6 +31,11 @@ def lzh_path(kind: str, filename: str) -> Path:
     return RAW_ROOT / "lzh" / kind / filename
 
 
+def snapshot_path(hd: str, jcd: str, prefix: str, rno: int, ts: int) -> Path:
+    # 每次快照獨立存檔（不覆蓋），用來重建締切前的賠率時系列。
+    return RAW_ROOT / "odds_snapshot" / hd[:4] / hd / jcd / f"{prefix}_{rno:02d}" / f"{ts}.html.gz"
+
+
 def write_gzip(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")

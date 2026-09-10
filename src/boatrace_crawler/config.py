@@ -62,9 +62,16 @@ CORE_PREFIXES: tuple[str, ...] = ("beforeinfo", "odds3t")
 
 RACER_PREFIXES: tuple[str, ...] = ("profile", "back3", "season", "course")
 
+# 締切前賠率時系列快照只需要三連単（REVIEW §3.5 的 alpha 假說原料）。
+SNAPSHOT_PREFIXES: tuple[str, ...] = ("odds3t",)
+DEFAULT_SNAPSHOT_INTERVAL = 180  # 秒，run_odds_snapshot.sh 預設輪詢間隔
+
 RACES_PER_DAY = 12
 TOBAN_MIN = 1
 TOBAN_MAX = 9999
+
+# point-in-time DB（scripts/build_db.py 產生）。
+DB_PATH = DATA_ROOT / "boatrace.db"
 
 # 官方最早提供賽事頁的日期（develop-plan-1.md）。
 EARLIEST_DATE = "20160901"
