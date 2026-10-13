@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import timedelta, timezone
 from pathlib import Path
+
+# 「今天」一律以 JST 判定（日本無夏令時間，固定 +9 即可）。
+# 本機若在其他時區（例如 PDT 比 JST 慢 16 小時），用 date.today() 會在日本白天抓到前一天。
+JST = timezone(timedelta(hours=9), "JST")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = PROJECT_ROOT / "data"

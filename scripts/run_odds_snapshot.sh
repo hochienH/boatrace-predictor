@@ -8,6 +8,10 @@ INTERVAL="${INTERVAL:-180}"
 
 echo "=== odds snapshot loop, interval=${INTERVAL}s ==="
 while true; do
-  PYTHONPATH=src .venv/bin/python -u -m boatrace_crawler odds-snapshot
+  # 單輪失敗（斷網、DNS 解析失敗等）只記錄、下一輪重試；不可讓 set -e 結束整個迴圈
+  # （2026-09-22 曾因一次 DNS 失敗整個停擺三週，快照歷史無法回補）。
+  if ! PYTHONPATH=src .venv/bin/python -u -m boatrace_crawler odds-snapshot; then
+    echo "[$(TZ=Asia/Tokyo date '+%F %T JST')] 本輪快照失敗，${INTERVAL}s 後重試"
+  fi
   sleep "$INTERVAL"
 done

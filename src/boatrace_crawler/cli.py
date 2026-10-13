@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from datetime import date, timedelta
+from datetime import timedelta
 
 from . import downloads, odds_snapshot, race, racer, schedule
 from .config import (
@@ -22,11 +22,11 @@ PRESETS: dict[str, tuple[str, ...]] = {"core": CORE_PREFIXES, "all": RACE_PREFIX
 
 
 def _default_end() -> str:
-    return date.today().strftime("%Y%m%d")
+    return schedule.today_jst().strftime("%Y%m%d")
 
 
 def _default_start(days: int) -> str:
-    return (date.today() - timedelta(days=days - 1)).strftime("%Y%m%d")
+    return (schedule.today_jst() - timedelta(days=days - 1)).strftime("%Y%m%d")
 
 
 def build_parser() -> argparse.ArgumentParser:

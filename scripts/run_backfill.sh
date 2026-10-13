@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 mkdir -p logs
 
 START="${START:-20160901}"
-END="${END:-$(date +%Y%m%d)}"
+END="${END:-$(TZ=Asia/Tokyo date +%Y%m%d)}"
 WORKERS="${WORKERS:-200}"
 
 echo "=== race (core) $START -> $END, workers=$WORKERS ==="

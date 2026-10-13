@@ -10,7 +10,6 @@ from __future__ import annotations
 import time
 from collections import Counter
 from dataclasses import dataclass
-from datetime import date
 
 from . import schedule, storage
 from .config import RACE_BASE, RACES_PER_DAY, SNAPSHOT_PREFIXES
@@ -55,7 +54,7 @@ def snapshot_once(
     workers: int = 20,
 ) -> Counter[str]:
     """對某日目前開催中的所有場次拍一次賠率快照。"""
-    hd = hd or date.today().strftime("%Y%m%d")
+    hd = hd or schedule.today_jst().strftime("%Y%m%d")
     venues = schedule.open_venues(fetcher, hd)
     if not venues:
         print(f"{hd}: 無開催，略過")

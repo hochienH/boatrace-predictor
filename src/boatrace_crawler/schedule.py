@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import re
+from datetime import date, datetime
 
 from . import storage
-from .config import RACE_BASE, VENUES
+from .config import JST, RACE_BASE, VENUES
 from .fetcher import Fetcher
 
 _JCD_RE = re.compile(rb"jcd=(\d{2})")
+
+
+def today_jst() -> date:
+    """日本當地的今天（開催日以 JST 為準，不能用本機時區的 date.today()）。"""
+    return datetime.now(JST).date()
 
 
 def index_url(hd: str) -> str:
