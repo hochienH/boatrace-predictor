@@ -9,7 +9,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from boatrace_crawler import odds_snapshot, storage
+from datetime import datetime
+
+from boatrace_crawler import odds_snapshot, schedule, storage
+from boatrace_crawler.config import JST
 from boatrace_crawler.fetcher import FetchError
 
 PAGE_A = b'<html><head><style>a{}</style></head><body><!-- c --><table class="table1">A  1</table><script>x=1</script></body></html>'
@@ -24,6 +27,26 @@ def pc_page(nav: bytes, body: bytes, with_markers: bool = True) -> bytes:
     if with_markers:
         return head + b'<main><div class="title16__add2020">x</div><div class="table1">' + body + b'</div></main><footer>f</footer></body></html>'
     return head + b'<div class="table1">' + body + b'</div></body></html>'
+
+
+NAV_TIMES = ["10:54", "11:21", "11:48", "12:16", "12:44", "13:13", "13:46", "14:13", "14:41", "15:14", "15:44", "16:14"]
+
+
+def nav_table(times=NAV_TIMES) -> bytes:
+    """仿賽事頁上方導覽表：一列 1R～12R、一列 締切予定時刻。"""
+    cells = "".join(f'<td class=" ">{t}</td>' for t in times)
+    return (
+        '<table class="table1"><tbody><tr><th class="is-activeColor1">1R</th></tr>'
+        f'<tr><td class="is-fs14 is-thColor8 is-fBold" colspan="2">締切予定時刻</td>{cells}</tr></tbody></table>'
+    ).encode()
+
+
+def page_with_nav(body: bytes = b"odds 1-2-3", times=NAV_TIMES) -> bytes:
+    return b"<html><body>" + nav_table(times) + b'<main><div class="title16__add2020">x</div><div class="table1">' + body + b"</div></main></body></html>"
+
+
+def jst(hd: str, hhmm: str) -> datetime:
+    return schedule.deadline_at(hd, hhmm)
 
 
 class FakeFetcher:
@@ -102,10 +125,16 @@ class SnapshotDedupTest(unittest.TestCase):
         self.assertEqual(last["sha256"], storage.content_hash(PAGE_B))
         self.assertEqual(last["ts"], 400)
 
-    def test_odds3t_always_writes(self):
-        self.assertEqual(self._run("odds3t", PAGE_A, 100), "ok")
-        self.assertEqual(self._run("odds3t", PAGE_A, 200), "ok")
-        self.assertEqual(self._files("odds3t"), ["100.html.gz", "200.html.gz"])
+    def test_odds3t_dedups_on_body_region(self):
+        # 決策 #10：odds3t 也去重；發售前每輪都是同一張「データはありません」、締切後都是定格賠率
+        self.assertEqual(self._run("odds3t", page_with_nav(b"no data"), 100), "ok")
+        self.assertEqual(self._run("odds3t", page_with_nav(b"no data"), 200), "unchanged")
+        self.assertEqual(self._run("odds3t", page_with_nav(b"1-2-3 12.3"), 300), "ok")
+        self.assertEqual(self._run("odds3t", page_with_nav(b"1-2-3 12.3"), 400), "unchanged")
+        self.assertEqual(self._run("odds3t", page_with_nav(b"1-2-3 11.9"), 500), "ok")
+        self.assertEqual(self._files("odds3t"), ["100.html.gz", "300.html.gz", "500.html.gz"])
+        last = json.loads(storage.MANIFEST_PATH.read_text().splitlines()[-1])
+        self.assertEqual(last["scope"], "region")
 
     def test_empty_and_failed_do_not_touch_dedup_state(self):
         self.assertEqual(self._run("pcexpect", PAGE_A, 100), "ok")
@@ -152,6 +181,136 @@ class SnapshotDedupTest(unittest.TestCase):
                 fh.write(body)
         self.assertEqual(storage.latest_snapshot("20261024", "04", "pcexpect", 1).name, "1000.html.gz")
         self.assertEqual(self._run("pcexpect", PAGE_A, 1100), "unchanged")
+
+
+class ParseDeadlinesTest(unittest.TestCase):
+    def test_parses_twelve_times(self):
+        self.assertEqual(schedule.parse_deadlines(page_with_nav()), dict(enumerate(NAV_TIMES, start=1)))
+
+    def test_pads_single_digit_hour(self):
+        times = ["8:35"] + NAV_TIMES[1:]
+        self.assertEqual(schedule.parse_deadlines(page_with_nav(times=times))[1], "08:35")
+
+    def test_rejects_partial_or_missing_table(self):
+        self.assertEqual(schedule.parse_deadlines(page_with_nav(times=NAV_TIMES[:11] + ["-"])), {})
+        self.assertEqual(schedule.parse_deadlines(PAGE_A), {})
+        self.assertEqual(schedule.parse_deadlines(EMPTY), {})
+
+
+class DeadlineBookTest(unittest.TestCase):
+    HD = "20261024"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.patches = [mock.patch.object(storage, "RAW_ROOT", root / "raw")]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def test_unknown_venue_polls_everything(self):
+        book = odds_snapshot.DeadlineBook(self.HD)
+        self.assertIsNone(book.active_races("04", jst(self.HD, "12:00")))
+
+    def test_window_open_to_deadline_plus_grace(self):
+        book = odds_snapshot.DeadlineBook(self.HD)
+        book.observe("04", page_with_nav())
+        self.assertEqual(book.active_races("04", jst(self.HD, "06:00")), [])  # 開賣前
+        self.assertEqual(book.active_races("04", jst(self.HD, "07:00")), list(range(1, 13)))
+        self.assertEqual(book.active_races("04", jst(self.HD, "11:14")), list(range(1, 13)))  # 1R 10:54 + 20min 剛好還在
+        self.assertEqual(book.active_races("04", jst(self.HD, "11:15")), list(range(2, 13)))
+        self.assertEqual(book.active_races("04", jst(self.HD, "16:35")), [])  # 12R 16:14 + 20min 過了
+        self.assertIsNone(book.active_races("05", jst(self.HD, "12:00")))  # 別的場地還不知道
+
+    def test_observe_updates_and_save_round_trips(self):
+        book = odds_snapshot.DeadlineBook(self.HD)
+        book.observe("04", page_with_nav())
+        book.observe("04", PAGE_A)  # 解不到就不動
+        book.save()
+        self.assertEqual(schedule.load_deadlines(self.HD), {"04": dict(enumerate(NAV_TIMES, start=1))})
+        later = ["11:30"] + NAV_TIMES[1:]
+        book.observe("04", page_with_nav(times=later))  # 時刻調整要跟上
+        book.save()
+        self.assertEqual(schedule.load_deadlines(self.HD)["04"][1], "11:30")
+        self.assertEqual(odds_snapshot.DeadlineBook(self.HD).active_races("04", jst(self.HD, "11:20")), list(range(1, 13)))
+
+    def test_corrupt_cache_is_ignored(self):
+        path = storage.deadlines_path(self.HD)
+        path.parent.mkdir(parents=True)
+        path.write_text("{not json")
+        self.assertEqual(schedule.load_deadlines(self.HD), {})
+        path.write_text(json.dumps({"04": {"x": "10:00"}, "05": "bad"}))
+        self.assertEqual(schedule.load_deadlines(self.HD), {})
+
+
+class RecordingFetcher:
+    def __init__(self, body: bytes):
+        self.body = body
+        self.urls: list[str] = []
+        self._lock = __import__("threading").Lock()
+
+    def get(self, url: str) -> bytes:
+        with self._lock:
+            self.urls.append(url)
+        return self.body
+
+
+class SnapshotWindowTest(unittest.TestCase):
+    HD = "20261024"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.patches = [
+            mock.patch.object(storage, "RAW_ROOT", root / "raw"),
+            mock.patch.object(storage, "MANIFEST_PATH", root / "raw" / "_manifest.jsonl"),
+            mock.patch.object(schedule, "open_venues", return_value=["04"]),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def _once(self, fetcher, hhmm, **kw):
+        return odds_snapshot.snapshot_once(fetcher, hd=self.HD, prefixes=("odds3t",), workers=2, now=jst(self.HD, hhmm), **kw)
+
+    def test_first_round_learns_deadlines_then_filters(self):
+        f = RecordingFetcher(page_with_nav())
+        counts = self._once(f, "06:00")  # 還不知道時刻 → 全抓，順便學到時刻
+        self.assertEqual(len(f.urls), 12)
+        self.assertEqual(counts["skipped"], 0)
+        self.assertTrue(storage.deadlines_path(self.HD).exists())
+
+        f.urls.clear()
+        counts = self._once(f, "06:10")  # 開賣前 → 一個請求都不發
+        self.assertEqual(f.urls, [])
+        self.assertEqual(counts["skipped"], 12)
+
+        f.urls.clear()
+        counts = self._once(f, "11:20")  # 1R 已過締切+20min
+        self.assertEqual(sorted(int(u.split("rno=")[1].split("&")[0]) for u in f.urls), list(range(2, 13)))
+        self.assertEqual(counts["skipped"], 1)
+
+        f.urls.clear()
+        self._once(f, "06:10", ignore_deadlines=True)
+        self.assertEqual(len(f.urls), 12)
+
+    def test_skipped_counts_per_prefix(self):
+        f = RecordingFetcher(page_with_nav())
+        self._once(f, "07:00")
+        f.urls.clear()
+        counts = odds_snapshot.snapshot_once(
+            f, hd=self.HD, prefixes=("odds3t", "pcexpect"), workers=2, now=jst(self.HD, "17:00")
+        )
+        self.assertEqual(f.urls, [])
+        self.assertEqual(counts["skipped"], 24)
 
 
 if __name__ == "__main__":
