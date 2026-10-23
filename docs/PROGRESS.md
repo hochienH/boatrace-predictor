@@ -9,8 +9,8 @@
   - log 的 `完成：{...}` 行多了 `skipped`（因時間窗沒發的請求數）；`odds-snapshot --ignore-deadlines` 可整輪關掉過濾。
   - **改程式或切 branch 會立刻影響下一輪**，因為每輪都是新的 python process 讀 working tree；多檔修改要一次寫完（10-24 cli.py 先落地害一輪 TypeError）。
   - 停止：`launchctl bootout gui/$(id -u)/com.hochienh.boatrace-odds-snapshot`；看狀態：`launchctl list | grep boatrace`；log 在 `logs/odds_snapshot.log`（進度列會洗版，看 `grep "^完成"`）。
-  - Mac 睡眠時缺快照；PDT 深夜正是 JST 賽事時段。
-- **pcexpect 歷史回填（決策 #7）— 暫停中，要續跑**：`scripts/run_backfill_pcexpect.sh`（2017-04-01 → 昨天，200 併發，nohup + `caffeinate -i`，log `logs/backfill_pcexpect.log`）。10-24 08:33 JST 啟動、08:55 因拔電源暫停，**跑到 2017-05-22、9,216 張**。插電後重跑同一個腳本即接續（已有檔 skip，跑過的日子幾秒帶過）。全程約 55 萬請求、實測約 6 天／分鐘 → 剩約 9～10 小時；合蓋會睡，要開著蓋子插電跑。抽查 2017-04-02、04-20 的頁都有 予想フォーカス／自信度。完成後盤點：`find data/raw/race -name 'pcexpect_*' | wc -l` 應接近 2017-04 起 beforeinfo 的張數；`tr '\r' '\n' < logs/backfill_pcexpect.log | grep -E '^20[0-9]{6}:' | tail -1` 看跑到哪天。
+  - Pro 目前插電且 `pmset SleepDisabled 1`，合蓋不睡；若改回會睡，睡著那段就缺快照（PDT 深夜正是 JST 賽事時段）。使用者常從 Air ssh 進 Pro 開 session，長工作放 tmux。
+- **pcexpect 歷史回填（決策 #7）— 跑中**：`scripts/run_backfill_pcexpect.sh`（2017-04-01 → 昨天，200 併發，在 Pro 的 tmux session `pcexpect` 前景跑＋`caffeinate -i`，log `logs/backfill_pcexpect.log`）。10-24 08:33 JST 啟動，08:55 誤以為要拔 Pro 的電源停過一次（到 2017-05-22），09:05 在 tmux 續跑。全程約 55 萬請求、實測約 6 天／分鐘 → 預計 10-24 19 時 JST 前後完成。中斷就重跑同一個腳本（已有檔 skip，跑過的日子幾秒帶過）。看進度：`tmux attach -t pcexpect`（Ctrl-b d 離開）或 `tr '\r' '\n' < logs/backfill_pcexpect.log | grep -E '^20[0-9]{6}:' | tail -1`。抽查 2017-04-02、04-20 的頁都有 予想フォーカス／自信度。完成後盤點：`find data/raw/race -name 'pcexpect_*' | wc -l` 應接近 2017-04 起 beforeinfo 的張數。
 - **分析層套件**：`.venv` 已裝 pandas 3.1 / pyarrow 26 / duckdb 2.0 / lxml / scipy / statsmodels / lightgbm 4.7；`brew install libomp` 已裝（10-24），lightgbm 可 import。
 - **測試**：`PYTHONPATH=src .venv/bin/python -m unittest tests.test_snapshot_dedup -v`（22 個）。
 
@@ -29,7 +29,7 @@ parser 重建時系列時（兩種頁同一套規則）：丟掉時間戳晚於�
 
 ## 下一步（照 REVIEW §10 Phase 0 → 1）
 
-0. 插電後重跑 `scripts/run_backfill_pcexpect.sh`，把 pcexpect 回填跑完並盤點。
+0. pcexpect 回填跑完後盤點張數（見上）；中斷就重跑 `scripts/run_backfill_pcexpect.sh`。
 1. B/K/fan 檔 parser → `data/parquet/<table>/year=YYYY/*.parquet`（決策 #3），先做 K 檔（結果＋締切賠率）與 B 檔（出走表）。
 2. `odds3t` 歷史頁 parser → 120 組合-場表 + 市場隱含機率表（決策 #2 的主目標變數）。
 3. 快照 parser（odds3t 時系列、pcexpect 版本序列；規則見上節）。

@@ -45,7 +45,7 @@
 | 10 | **odds3t 也套去重**，區段與 pcexpect 相同（`<div class="title16__add2020">` 到 `</main>`，含「オッズ更新時間」與三連単表），`SNAPSHOT_DEDUP_PREFIXES = ("odds3t", "pcexpect")`。 | 10-23 實測全日 odds3t 檔只有 8.9% 內容與前一張不同；即使只看 #9 的窗口內也只有 26%。manifest 的 `unchanged` 列（含 ts、sha256）保留「到此時仍相同」，資訊不損失。 | 每日 odds3t 落檔從約 7 萬張降到約 6～7 千張。parser 重建時系列時兩種頁同一套規則（檔案 ts＝至少從此時起、`unchanged` ts＝到此時仍相同）；10-24 08:44 JST 之前的 odds3t 是舊規則（每輪落檔）。 |
 
 ### 2026-10-24 備註
-- **#7 回填已啟動**：`scripts/run_backfill_pcexpect.sh`（`race --start 20170401 --prefixes pcexpect`，200 併發，nohup + `caffeinate -i`）。08:33 JST 起跑、08:55 因使用者要拔電源先停，跑到 2017-05-22（9,216 張）；可續跑，已有檔會 skip。抽查 2017-04-02、04-20 的頁都有 予想フォーカス 與 自信度，完整版服務起點早於 #7 估的區間下限。
+- **#7 回填已啟動**：`scripts/run_backfill_pcexpect.sh`（`race --start 20170401 --prefixes pcexpect`，200 併發，Pro 上 tmux session `pcexpect`＋`caffeinate -i`）。08:33 JST 起跑，08:55 誤判要拔 Pro 電源停過一次（到 2017-05-22、9,216 張），09:05 續跑；可中斷續跑，已有檔會 skip。抽查 2017-04-02、04-20 的頁都有 予想フォーカス 與 自信度，完整版服務起點早於 #7 估的區間下限。
 - `brew install libomp` 已裝，lightgbm 4.7 可 import（決策 #3 的備註解除）。
 - pcexpect 當日發布時間不固定：10-24 平和島 1R 在 02:06 與 03:59 的快照本體仍是「データはありません」，04:03 才有予想。這種頁含導覽表（有 `table1`），manifest 記 `ok` 不是 `empty`——「尚未發布」要看本體判斷，odds3t 發售前亦然。
 - 部署 #9／#10 時 cli.py 比 odds_snapshot.py 早落地，08:40:53 JST 那一輪 TypeError 失敗、下一輪恢復；working tree 是 live 的，多檔修改要一次寫完。
