@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 締切前時系列快照：每隔 INTERVAL 秒對當天開催中賽事拍一次 odds3t 與 pcexpect（後者內容沒變不落檔），背景常駐執行。
+# 締切前時系列快照：每隔 INTERVAL 秒對當天「發售中、未締切」的場次拍一次 odds3t 與 pcexpect（內容沒變不落檔），背景常駐執行。
 set -e
 cd "$(dirname "$0")/.."
 mkdir -p logs

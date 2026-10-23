@@ -38,6 +38,11 @@ def snapshot_path(hd: str, jcd: str, prefix: str, rno: int, ts: int) -> Path:
     return RAW_ROOT / "odds_snapshot" / hd[:4] / hd / jcd / f"{prefix}_{rno:02d}" / f"{ts}.html.gz"
 
 
+def deadlines_path(hd: str) -> Path:
+    # 當日各場地 12 場的 締切予定時刻 快取（odds-snapshot 只輪詢未締切場次用），從賽事頁的導覽表解出。
+    return RAW_ROOT / "index" / hd[:4] / f"{hd}_deadlines.json"
+
+
 def latest_snapshot(hd: str, jcd: str, prefix: str, rno: int) -> Path | None:
     """同一場次目前最新的一張快照（依檔名時間戳），沒有就 None。寫到一半的 .tmp 不算。"""
     folder = snapshot_path(hd, jcd, prefix, rno, 0).parent
@@ -97,6 +102,18 @@ def write_bytes(path: Path, data: bytes) -> None:
 def read_gzip(path: Path) -> bytes:
     with gzip.open(path, "rb") as fh:
         return fh.read()
+
+
+def read_json(path: Path) -> object | None:
+    """讀 JSON；檔案不存在或內容壞掉都回 None（呼叫端視同沒有快取）。"""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def write_json(path: Path, obj: object) -> None:
+    write_bytes(path, json.dumps(obj, ensure_ascii=False, sort_keys=True, indent=1).encode("utf-8"))
 
 
 def record(kind: str, url: str, outcome: str, **extra: object) -> None:

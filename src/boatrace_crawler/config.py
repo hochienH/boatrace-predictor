@@ -71,10 +71,17 @@ RACER_PREFIXES: tuple[str, ...] = ("profile", "back3", "season", "course")
 # pcexpect 的「最終版」歷史頁其實抓得到（約 2017 年起，race crawler 的 RACE_PREFIXES 可回填），
 # 快照迴圈補的是當日予想有沒有被改過的軌跡（docs/decisions.md 2026-10-23 #7）。
 SNAPSHOT_PREFIXES: tuple[str, ...] = ("odds3t", "pcexpect")
-# 這些 prefix「內容沒變就不寫檔」：比對去 script/style/註解後的 sha256，相同只記 manifest。
-# odds3t 刻意不去重，維持每輪落檔的既有行為（要改先在 decisions.md 記一條）。
-SNAPSHOT_DEDUP_PREFIXES: tuple[str, ...] = ("pcexpect",)
+# 這些 prefix「內容沒變就不寫檔」：比對本體區段去 script/style/註解後的 sha256，相同只記 manifest。
+# odds3t 自 2026-10-24 起也去重（docs/decisions.md #10）：發售前的「データはありません」頁與締切後的定格賠率
+# 佔了每天約 2/3 的檔案，去掉之後資訊不損失（manifest 的 unchanged 列保留「到此時仍相同」）。
+SNAPSHOT_DEDUP_PREFIXES: tuple[str, ...] = ("odds3t", "pcexpect")
 DEFAULT_SNAPSHOT_INTERVAL = 180  # 秒，run_odds_snapshot.sh 預設輪詢間隔
+# 只輪詢「發售中、未締切」的場次（docs/decisions.md #9）：每場從 JST SNAPSHOT_OPEN_JST 起輪詢，到
+# 「該場締切予定時刻後 GRACE 分鐘」止。2026-10-23 實測 14 個場地的 odds3t 都在 JST 06:47～08:01 才首次出現賠率
+# （與該場 1R 締切時刻無關，夜場也是早上開賣），之前都是「データはありません」；GRACE 吃掉發走延遅與締切後
+# 最後一次賠率更新。還不知道締切時刻的場地（當日第一輪、解析失敗）照舊全部輪詢。
+SNAPSHOT_OPEN_JST = "06:30"
+SNAPSHOT_GRACE_MINUTES = 20
 
 RACES_PER_DAY = 12
 TOBAN_MIN = 1

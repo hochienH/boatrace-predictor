@@ -65,6 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_snap = sub.add_parser("odds-snapshot", help="對當天開催中賽事拍一次賠率快照（給 cron/loop 輪詢用）")
     p_snap.add_argument("--date", default=None, help="YYYYMMDD，預設今天")
+    p_snap.add_argument("--ignore-deadlines", action="store_true", help="不看締切時刻，當日所有場次都輪詢")
 
     p_all = sub.add_parser("all", help="依序跑完 race / lzh / kibetsu / racer")
     p_all.add_argument("--start", default=None)
@@ -88,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "odds-snapshot":
-        counts = odds_snapshot.snapshot_once(fetcher, hd=args.date, workers=args.workers)
+        counts = odds_snapshot.snapshot_once(
+            fetcher, hd=args.date, workers=args.workers, ignore_deadlines=args.ignore_deadlines
+        )
         print(f"完成：{dict(counts)}")
         return 0
 
