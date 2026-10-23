@@ -67,8 +67,13 @@ CORE_PREFIXES: tuple[str, ...] = ("beforeinfo", "odds3t")
 
 RACER_PREFIXES: tuple[str, ...] = ("profile", "back3", "season", "course")
 
-# 締切前賠率時系列快照只需要三連単（REVIEW §3.5 的 alpha 假說原料）。
-SNAPSHOT_PREFIXES: tuple[str, ...] = ("odds3t",)
+# 締切前時系列快照：三連単賠率（REVIEW §3.5 的 alpha 假說原料）＋ コンピューター予想（docs/decisions.md #4）。
+# pcexpect 的「最終版」歷史頁其實抓得到（約 2017 年起，race crawler 的 RACE_PREFIXES 可回填），
+# 快照迴圈補的是當日予想有沒有被改過的軌跡（docs/decisions.md 2026-10-23 #7）。
+SNAPSHOT_PREFIXES: tuple[str, ...] = ("odds3t", "pcexpect")
+# 這些 prefix「內容沒變就不寫檔」：比對去 script/style/註解後的 sha256，相同只記 manifest。
+# odds3t 刻意不去重，維持每輪落檔的既有行為（要改先在 decisions.md 記一條）。
+SNAPSHOT_DEDUP_PREFIXES: tuple[str, ...] = ("pcexpect",)
 DEFAULT_SNAPSHOT_INTERVAL = 180  # 秒，run_odds_snapshot.sh 預設輪詢間隔
 
 RACES_PER_DAY = 12
