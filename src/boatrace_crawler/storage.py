@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
+import re
 import threading
 import time
 from pathlib import Path
@@ -34,6 +36,47 @@ def lzh_path(kind: str, filename: str) -> Path:
 def snapshot_path(hd: str, jcd: str, prefix: str, rno: int, ts: int) -> Path:
     # 每次快照獨立存檔（不覆蓋），用來重建締切前的賠率時系列。
     return RAW_ROOT / "odds_snapshot" / hd[:4] / hd / jcd / f"{prefix}_{rno:02d}" / f"{ts}.html.gz"
+
+
+def latest_snapshot(hd: str, jcd: str, prefix: str, rno: int) -> Path | None:
+    """同一場次目前最新的一張快照（依檔名時間戳），沒有就 None。寫到一半的 .tmp 不算。"""
+    folder = snapshot_path(hd, jcd, prefix, rno, 0).parent
+    if not folder.is_dir():
+        return None
+    candidates = [p for p in folder.glob("*.html.gz") if p.stem.removesuffix(".html").isdigit()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: int(p.stem.removesuffix(".html")))
+
+
+_SCRIPT_RE = re.compile(rb"<script\b.*?</script>", re.S | re.I)
+_STYLE_RE = re.compile(rb"<style\b.*?</style>", re.S | re.I)
+_COMMENT_RE = re.compile(rb"<!--.*?-->", re.S)
+_WS_RE = re.compile(rb"\s+")
+
+
+def extract_region(body: bytes, start: bytes, end: bytes) -> tuple[bytes, bool]:
+    """切出 start 標記（含）到其後第一個 end 標記（不含）之間的片段；任一標記找不到就回整份 body 與 False。"""
+    i = body.find(start)
+    if i < 0:
+        return body, False
+    j = body.find(end, i + len(start))
+    if j < 0:
+        return body, False
+    return body[i:j], True
+
+
+def content_hash(body: bytes) -> str:
+    """去掉 <script>/<style>/HTML 註解並壓縮空白後的 sha256，用來判斷頁面「內容」有沒有變。
+
+    官方頁每次回應只有一行 boomerang 監測 script 不同（docs/decisions.md 2026-10-22 備註），
+    去掉之後同一份內容的 hash 才會穩定。
+    """
+    stripped = _SCRIPT_RE.sub(b"", body)
+    stripped = _STYLE_RE.sub(b"", stripped)
+    stripped = _COMMENT_RE.sub(b"", stripped)
+    stripped = _WS_RE.sub(b" ", stripped).strip()
+    return hashlib.sha256(stripped).hexdigest()
 
 
 def write_gzip(path: Path, data: bytes) -> None:
